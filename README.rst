@@ -4,7 +4,7 @@ SpinACP: Application Command Protocol for SpiNNaker
 SpinACP is a library providing a framework for the definition and execution of commands in the Application Processors of the SpiNNaker platform. It can also be used to reconfigure memory data structures of an application running on the board.
 
 Installation
---------------------------
+------------
 
 1. Download SpinACP to your project folder. 
 2. In the SpinACP folder, setup the Python libraries:
