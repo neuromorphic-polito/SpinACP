@@ -1,3 +1,22 @@
+// ==========================================================================
+//                                  SpinACP
+// ==========================================================================
+// This file is part of SpinACP.
+//
+// SpinACP is Free Software: you can redistribute it and/or modify it
+// under the terms found in the LICENSE[.md|.rst] file distributed
+// together with this file.
+//
+// SpinACP is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+//
+// ==========================================================================
+// Author: Francesco Barchi <francesco.barchi@polito.it>
+// ==========================================================================
+// acp_net.cpp: Functions for SpinACP
+// ==========================================================================
+
 #include "_acp.h"
 
 typedef uint8_t *uint8_p;

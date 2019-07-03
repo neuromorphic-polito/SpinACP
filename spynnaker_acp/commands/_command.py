@@ -1,3 +1,23 @@
+# ==========================================================================
+#                                  SpinACP
+# ==========================================================================
+# This file is part of SpinACP.
+#
+# SpinACP is Free Software: you can redistribute it and/or modify it
+# under the terms found in the LICENSE[.md|.rst] file distributed
+# together with this file.
+#
+# SpinACP is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# ==========================================================================
+# Author: Francesco Barchi <francesco.barchi@polito.it>
+# ==========================================================================
+# _command.py: ACP Variable Command for SpinACP
+# ==========================================================================
+
+
 # -*- coding: utf-8 -*-
 from __future__ import print_function
 from ..types import ACPAbstractType
