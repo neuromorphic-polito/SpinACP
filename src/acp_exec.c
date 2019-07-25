@@ -1,104 +1,120 @@
-// ==========================================================================
-//                                  SpinACP
-// ==========================================================================
-// This file is part of SpinACP.
-//
-// SpinACP is Free Software: you can redistribute it and/or modify it
-// under the terms found in the LICENSE[.md|.rst] file distributed
-// together with this file.
-//
-// SpinACP is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-//
-// ==========================================================================
-// Author: Francesco Barchi <francesco.barchi@polito.it>
-// ==========================================================================
-// acp_exec.cpp: Execution functions for SpinACP
-// ==========================================================================
-
 #include "_acp.h"
 
-#ifdef ACP_SPIN2MC
-void exec_bb_callback(uint connection_id, uint arg1){
-  //io_printf(IO_BUF, "[ACP-CLBK] Hello %d\n", connection_id);
-  exec_bb(mc_get_msg(connection_id), mc_get_payload(connection_id));
-  mc_free_connection(connection_id);
-}
-#endif
 
-/**
- * Exec a buffer binding command
- * @param msg
- * @param payload
- * @return
- */
-bool exec_bb(acp_msg_bb_t *msg, uint8_t *payload) {
-  // --- Exec ---
-  switch (msg->cmd) {
-    case ACP_CMD_WRITE_VAR:
-      return exec_bb_write(msg, payload);
+static inline bool exec_me_update(
+    acp_msg_t *msg, acp_channel_t channel, spin2_core_t *source);
 
-    case ACP_CMD_READ_VAR:
-      return exec_bb_read(msg, payload);
+
+static inline bool exec_me_read(
+    acp_msg_t *msg, acp_channel_t channel, spin2_core_t *source);
+
+
+bool exec(
+    acp_msg_t *acp_msg, 
+    acp_channel_t channel, 
+    spin2_core_t *source) {
+
+  bool r;
+ 
+  if (acp_msg->cmd <= 0xFF) { 
+    // BUILTIN COMMAND
+    if (acp_msg->cmd == ACP_COMMAND_ME_UPDATE) {
+      r = exec_me_update(acp_msg, channel, source);
+    } else if (acp_msg->cmd == ACP_COMMAND_ME_READ) {
+      r = exec_me_read(acp_msg, channel, source);
+    } else if (acp_msg->cmd == ACP_COMMAND_SYN) {
+      acp_syn();
+      r = true;
+    } else if (acp_msg->cmd == ACP_COMMAND_ACK) {
+      acp_ack();
+      r = true;
+    } else {
+      r = false;
+    }
+  } else {
+    // USER COMMAND
+    // TODO
+    r=false;
   }
 
-  return false;
+  return r;
 }
 
 
-/**
- * Exec a Buffer Binding write command
- * @param msg
- * @param payload
- * @return
- */
-bool exec_bb_write(acp_msg_bb_t *msg, uint8_t *payload) {
-  uint16_t length = msg->len;  // <- value in Byte
-  cmd_variable_read(msg->buffer_id, (uint8_t *) NULL, &length);
-  cmd_variable_write(msg->buffer_id, payload, length);
-  return true;
+inline bool exec_me_update(
+    acp_msg_t *acp_msg, 
+    acp_channel_t channel, 
+    spin2_core_t *source) {
+  
+  uint16_t me_id;
+  memory_entity_t *var;
+  
+  me_id = (uint16_t)(acp_msg->header_lv2 & 0x0000FFFF);
+  var = memory_entity_get(me_id); 
+
+  memory_entity_update(var, acp_msg->payload, acp_msg->length);
+  memory_entity_set_lock(var, false);
+  
+  return true;  
 }
 
-/**
- * Exec a Buffer Binding read command
- * @param msg
- * @param payload
- * @return
- */
-bool exec_bb_read(acp_msg_bb_t *msg, uint8_t *payload) {
-  // TODO: Send to host or send internally
-  uint16_t length;
-  sdp_msg_t *sdp_msg = msg->acp_header->sdp_header;
 
-  // --- SDP Header [SEND TO HOST] ---
-  sdp_msg->flags = 0x07;
-  sdp_msg->tag = 1;
-  sdp_msg->dest_port = PORT_ETH;
-  sdp_msg->dest_addr = sv->dbg_addr;
-  sdp_msg->srce_port = spin1_get_core_id();
-  sdp_msg->srce_addr = spin1_get_chip_id();
+inline bool exec_me_read(
+    acp_msg_t *msg, 
+    acp_channel_t channel, 
+    spin2_core_t *source) {
 
-  // --- SCP/ACP Header ---
-  sdp_msg->cmd_rc = 0xF4;
-//  sdp_msg->seq = sdp_msg->seq;
+  int i;
+  bool r;
+  
+  sdp_msg_t *sdp_msg;
+  uint8_t buffer[256] = {0};
+  uint16_t me_id;
+  uint16_t me_length;
+  memory_entity_t *var;
 
-  cmd_variable_read(msg->buffer_id, payload, &length);
-  sdp_msg->arg1 = length;
 
-  // --- Send ---
-  if (!sark_msg_send(sdp_msg, 10)) {
-    debug_printf("[ACP-NET] Error, impossible send the SDP\n");
-    return false;
+  if (channel == ACP_CHANNEL_HOST) {
+    sdp_msg = sark_msg_get();
+    if (sdp_msg == NULL) {
+      debug_printf("[ACP-EXEC] exec_me_read: Error! sark_msg_get failed");
+      return false;
+    }
+
+    me_id = msg->header_lv2 & 0xFFFF;
+
+    var = memory_entity_get(me_id); 
+    me_length = memory_entity_read(var, &buffer[0], 0);
+    
+    sdp_msg->flags = 0x07;
+    sdp_msg->tag = 1;
+    sdp_msg->dest_port = PORT_ETH;
+    sdp_msg->dest_addr = sv->dbg_addr;
+    sdp_msg->srce_port = spin1_get_core_id();
+    sdp_msg->srce_addr = spin1_get_chip_id();
+    sdp_msg->length = 16+me_length;
+
+    sdp_msg->cmd_rc = ACP_COMMAND_ME_READ_REPLY;
+    sdp_msg->seq = 0 | (me_length & 0x01FF);
+    sdp_msg->arg1 = 0;
+    sdp_msg->arg2 = buffer[3] << 24 | buffer[2] << 16 | buffer[1] << 8 | buffer[0];
+    sdp_msg->arg3 = buffer[7] << 24 | buffer[6] << 16 | buffer[5] << 8 | buffer[4];
+
+    for (i=8; i < me_length; i++){
+      sdp_msg->data[i-8] = buffer[i];
+    }
+
+    if (!sark_msg_send(sdp_msg, 10)) {
+      debug_printf("[ACP-EXEC] exec_me_read: Error! sark_msg_send failed\n");
+      r = false;
+    }
+
+    sark_msg_free(sdp_msg);
+    r = true;
+
+  } else {
+    // TODO -> implement with Spin2-MC
   }
 
-  return true;
-}
-
-bool exec_reply(acp_msg_reply_t *msg, uint8_t *msg_payload) {
-  return false;
-}
-
-bool exec_reply_read(acp_msg_reply_t *msg, uint8_t *msg_payload) {
-  return false;
+  return r;
 }

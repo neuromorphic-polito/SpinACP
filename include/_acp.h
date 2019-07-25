@@ -1,29 +1,7 @@
-// ==========================================================================
-//                                  SpinACP
-// ==========================================================================
-// This file is part of SpinACP.
-//
-// SpinACP is Free Software: you can redistribute it and/or modify it
-// under the terms found in the LICENSE[.md|.rst] file distributed
-// together with this file.
-//
-// SpinACP is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-//
-// ==========================================================================
-// Author: Francesco Barchi <francesco.barchi@polito.it>
-// ==========================================================================
-// _acp.h: Header file for SpinACP
-// ==========================================================================
-
 #ifndef __SPINN_ACP_PRIVATE_H__
 #define __SPINN_ACP_PRIVATE_H__
 
 #include "acp.h"
-
-#define ACP_PKT_IMMEDIATE 0xF1
-#define ACP_PKT_REPLY 0xF4
 
 #ifdef ACP_DEBUG
 #define debug_printf(...) \
@@ -33,72 +11,110 @@
   do { } while (0)
 #endif
 
-
-// ---
-typedef struct {
-  // SDP
-  sdp_msg_t *sdp_header;
-
-  // ACP
-  uint16_t cmd;
-  uint16_t seq;
-} acp_msg_t;
-
-typedef struct {
-  // SDP-ACP
-  acp_msg_t *acp_header;
-
-  // Buffer Binding header
-  uint8_t len;      //  4bit
-  uint8_t cmd;      //  8bit  Command
-  uint16_t buffer_id;  // 12bit  Buffer id
-  uint8_t offset;   //  8bit  Offset
-
-} acp_msg_bb_t;
-
-typedef struct {
-  // SDP-ACP
-  acp_msg_t *acp_header;
-
-  // Buffer Binding header
-  uint32_t reply;   //  32bit
-} acp_msg_reply_t;
-
-typedef uint8_t *uint8_t_p;
-
-// --- CMD ---
-bool cmd_variable_init();
-bool cmd_variable_destroy();
-bool cmd_variable_register(uint16_t var_code, uint16_t length,
-                           var_callback callback_write, var_callback callback_read);
-bool cmd_variable_write(uint16_t var_code, uint8_t *value, uint16_t length);
-bool cmd_variable_read(uint16_t var_code, uint8_t *value, uint16_t *length);
-bool cmd_variable_toggle(uint16_t var_code);
-
-bool cmd_variable_test(uint16_t var_code, uint8_t *value);
-
-bool cmd_net_variable_write(uint16_t var_code, uint8_t *value, uint16_t length,
-                            uint16_t address, uint8_t port);
-
-// --- EXEC ---
-#ifdef ACP_SPIN2MC
-void exec_bb_callback(uint connection_id, uint arg1);
-#endif
-
-bool exec_bb(acp_msg_bb_t *msg, uint8_t *payload);
-bool exec_bb_write(acp_msg_bb_t *msg, uint8_t *payload);
-bool exec_bb_read(acp_msg_bb_t *msg, uint8_t *payload);
-
-bool exec_reply(acp_msg_reply_t *msg, uint8_t *msg_payload);
-bool exec_reply_read(acp_msg_reply_t *msg, uint8_t *msg_payload);
-
-// --- NET ---
+#define error_printf(...) \
+  do { io_printf(IO_BUF, __VA_ARGS__); } while (0)
 
 
-// --- MC ---
-void mc_free_connection(uint8_t connection);
-acp_msg_bb_t *mc_get_msg(uint8_t connection_id);
-uint8_t *mc_get_payload(uint8_t connection_id);
+// --- Types ---
+typedef enum {
+  ACP_COMMAND_VERSION = 0x00,
+  ACP_COMMAND_VERSION_REPLY = 0xFF,
+
+  ACP_COMMAND_ME_CREATE = 0x01,
+  ACP_COMMAND_ME_READ = 0x02,
+  ACP_COMMAND_ME_UPDATE = 0x03,
+  ACP_COMMAND_ME_DELETE = 0x04,
+
+  ACP_COMMAND_ME_READ_REPLY = 0xF2,
+
+  ACP_COMMAND_SYN = 0x0F,
+  ACP_COMMAND_ACK = 0x0B
+} acp_command_t;
+
+typedef struct memory_entity memory_entity_t;
+
+
+// --- Engine ---
+bool exec(acp_msg_t *msg, acp_channel_t channel, spin2_core_t *source);
+
+
+// --- Network Receive SDP ---
+bool _acp_sdp_init();
+void _acp_sdp_callback(uint mailbox, uint port);
+
+
+// --- Network Receive MCM ---
+bool _acp_mc_init();
+void _acp_mc_callback(
+  uint8_t *data, 
+  uint16_t length, 
+  spin2_mc_channel spin2_channel, 
+  spin2_core_t *source);
+
+
+// --- Memory Entity ---
+void memory_entity_init();
+void memory_entity_clear();
+
+void memory_entity_create(
+  uint16_t me_id, 
+  uint16_t length, 
+  acp_me_callback_t callback_write, 
+  acp_me_callback_t callback_read);
+
+void memory_entity_delete(
+  uint16_t me_id);
+
+uint16_t memory_entity_read(
+  memory_entity_t *var, 
+  uint8_t *buffer, 
+  uint16_t length);
+
+uint16_t memory_entity_update(
+  memory_entity_t *var, 
+  uint8_t *buffer, 
+  uint16_t length);
+
+memory_entity_t * memory_entity_get(
+  uint16_t me_id);
+  
+bool memory_entity_is_lock(
+  memory_entity_t *var);
+
+bool memory_entity_is_virtual(
+  memory_entity_t *var);
+
+bool memory_entity_set_lock(
+  memory_entity_t *var,
+  bool lock);
+
+void memory_entity_set_buffer(
+  memory_entity_t *var, 
+  uint8_t *buffer, 
+  uint16_t length);
+
+
+// ---ACP Interface ---
+uint16_t _acp_me_update_self(
+  uint16_t me_id, 
+  uint8_t *buffer, 
+  uint16_t length);
+
+uint16_t _acp_me_update_core(
+  uint16_t me_id, 
+  uint8_t *buffer, 
+  uint16_t length, 
+  spin2_core_t *destination);
+
+uint16_t _acp_me_update_broadcast(
+  uint16_t me_id, 
+  uint8_t *buffer, 
+  uint16_t length);
+
+uint16_t _acp_me_update_host(
+  uint16_t me_id, 
+  uint8_t *buffer, 
+  uint16_t length);
 
 
 #endif //__SPINN_ACP_PRIVATE_H__
