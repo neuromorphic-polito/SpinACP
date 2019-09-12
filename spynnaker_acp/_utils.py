@@ -57,12 +57,16 @@ class Utils(object):
 
     @classmethod
     def get_transceiver(cls, spinn_url, bmp_url, version):
-        bmp = BMPConnectionData(0, 0, bmp_url, [0], None)
         try:
-            transceiver = create_transceiver_from_hostname(
-                spinn_url, version,
-                bmp_connection_data=[bmp],
-                auto_detect_bmp=False)
+            if bmp_url is not None:
+              bmp = BMPConnectionData(0, 0, bmp_url, [0], None)
+              transceiver = create_transceiver_from_hostname(
+                  spinn_url, version,
+                  bmp_connection_data=[bmp],
+                  auto_detect_bmp=False)
+            else:
+              transceiver = create_transceiver_from_hostname(
+                  spinn_url, version)
         except (SpinnmanIOException,
                 SpinnmanInvalidPacketException,
                 SpinnmanInvalidParameterException,

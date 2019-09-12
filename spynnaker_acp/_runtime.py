@@ -28,7 +28,7 @@ class ACPRuntime(object):
     __instance = None
 
     @classmethod
-    def create(cls, spinn_url, bmp_url):
+    def create(cls, spinn_url, bmp_url=None):
         print("[ACPRuntime] Create")
         if cls.__instance is not None:
             print("[ACPRuntime] Warning: The ACP Runtime exist")
